@@ -23,7 +23,8 @@ if __name__ == "__main__":
     set_session(sess)
 
     # Get data
-    model = model_utils.get_model(image_shape)
+    model = model_utils.identification_model(image_shape, 2)
+    model.compile(optimizer(lr=lr), loss="binary_crossentropy")
     #parallel_model = multi_gpu_model(model, gpus=3)
     if weight_load_path is not None:
         model.load_weights(weight_load_path)
@@ -31,17 +32,25 @@ if __name__ == "__main__":
     current_idx, current_epochs = 0, 0
     # Get the whole data
     print("Loading data:")
-    data, annotation = utils.load_data("")
+    data, annotation, view_predictions = utils.load_all_data()
+    train_portion = 0.7
+    num_train = int(len(data)*train_portion)
+    train_data = data[:num_train]
+    train_annotation = annotation[:num_train]
+    train_view_predictions = view_predictions[:num_train]
     print("Done!")
     while(current_epochs < epochs):
         st = time.time()
         current_batch_size = batch_size
         # Fetch the next batch
-        print("%d/%d" %(current_idx, len(data)), end=": ")
-        batch, random_batch, ground_truth = utils.get_next_batch(data, annotation, current_idx, batch_size)
+        print("%d/%d" %(current_idx+batch_size, num_train), end=": ")
+        batch, random_batch, ground_truth, batch_view, random_batch_view = \
+            utils.get_next_batch(train_data, train_annotation,
+                                 train_view_predictions, current_idx, batch_size)
         current_batch_size = len(batch)
         # Feed the batches
-        loss = model.train_on_batch([batch, random_batch], ground_truth)
+        loss = model.train_on_batch(
+            [batch, random_batch, batch_view, random_batch_view], ground_truth)
         t = time.time() - st
         print("batch loss:", loss, end=", ")
         print("time:", t)
@@ -49,7 +58,7 @@ if __name__ == "__main__":
         # If we iterate over all samples, increment current_epochs
         if current_idx % check_point_idx == 0:
             model.save_weights("weights_%d_%d.h5" %(current_idx, current_epochs))
-        if current_idx >= len(data):
+        if current_idx >= num_train:
             current_idx = 0
             current_epochs += 1
     model.save_weights(weight_save_path)

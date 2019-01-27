@@ -1,6 +1,14 @@
 temp_images/*
 .idea/*
 __pycache__/*
+negatives/*
+positives/*
+resized/*
+good/*
+.ipynb_checkpoints/*
+train/*
+test/*
+whale id examples/*
 *.h5
 *.p
 *.csv

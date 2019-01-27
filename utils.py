@@ -24,12 +24,17 @@ def load_all_data():
                 data[idx] = x
                 img.close()
 
+            # Perform view prediction
+            view_model = pickle.load(open("view_model.p", "rb"))
+            embeddings = pickle.load(open("embedded_images.p", "rb"))
+            view_predictions = view_model.predict(embeddings)
+
             ##Process annotations
             df = pd.read_csv(annotate_path, index_col=False)
-            pickle.dump((data, df), open("data.p", "wb")) #Save the data with pickle to be easily accessed later
+            pickle.dump((data, df, view_predictions), open("data.p", "wb")) #Save the data with pickle to be easily accessed later
         else:
-            data, df = pickle.load(open("data.p", "rb"))
-    return data, df
+            data, df, view_predictions = pickle.load(open("data.p", "rb"))
+    return data, df, view_predictions
 
 def load_view_data():
     with tf.device("/cpu:0"):
@@ -121,23 +126,19 @@ def view_classification_preprocess(img_path):
     hist = hist / np.max(hist)
     return hist
 
-def get_next_batch(data, annotation, current_index, batch_size):
+def get_next_batch(data, annotation, view_predictions, current_index, batch_size):
     with tf.device("/cpu:0"):
         batch_size = min(batch_size, len(data) - current_index)
-        filenames = os.listdir("resized")
-        #Process annotations
-        image_column = annotation["Image"]
-        annotation["Image"] = image_column.str.\
-            replace(".jpg", ".png") #The preprocessed files are in .png format
         ## Get next batch
         batch = data[current_index:current_index + batch_size, :]
-
+        batch_view = view_predictions[current_index: current_index + batch_size]
         ## Get the other distinct random batch
         indices = np.arange(len(data))
         #Remove the current batch from the random sampled ones so no duplicates
         indices = np.delete(indices, np.arange(current_index, current_index+32,))
         np.random.shuffle(indices)
-        random_batch = data[indices[:batch_size]]
+        random_batch = data[indices[:batch_size], :]
+        random_batch_view = view_predictions[indices[:batch_size]]
 
         ## Process ground truth values
         ground_truth = np.zeros([batch_size])
@@ -147,6 +148,4 @@ def get_next_batch(data, annotation, current_index, batch_size):
             if id == random_sample_id:
                 ground_truth[i] = 1
     print("fetched, ", end="")
-    return batch, random_batch, ground_truth
-
-load_view_data()
+    return batch, random_batch, ground_truth, batch_view, random_batch_view

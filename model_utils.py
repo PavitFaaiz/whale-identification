@@ -1,6 +1,6 @@
 from keras import Model, Input, Sequential
 from keras.layers import Dense, GlobalAveragePooling2D, \
-Lambda, Concatenate, Flatten, Dropout, Activation, BatchNormalization
+Lambda, concatenate, Flatten, Dropout, Activation, BatchNormalization
 from keras.applications.resnet50 import ResNet50
 import keras
 import tensorflow as tf
@@ -33,19 +33,30 @@ def identification_model(image_shape, model_num):
                           outputs=GlobalAveragePooling2D()(resnet(img)))
         embedded_img1 = baseModel(img1)
         embedded_img2 = baseModel(img2)
+
         L1_layer = Lambda(lambda embeded_pair: tf.abs(embeded_pair[0] - embeded_pair[1]))
-        L1_distance = L1_layer([embedded_img1, embedded_img2])
         if model_num == 1:
-            view_model = view_classification_model(False, "view_model_weights.h5")
-            merged = Concatenate([L1_distance, view_model])
-            fully1 = Dense(100, activation="relu", kernel_initializer="he_uniform")(merged)
-            out = Dense(1, activation="sigmoid", kernel_initializer="glorot_uniform")(fully1)
+            L1_distance = L1_layer([embedded_img1, embedded_img2])
         elif model_num == 2:
-            out = Dense(1, activation="sigmoid", kernel_initializer="glorot_uniform")(L1_distance)
+            # Reduce dimension and scale values to [0, 1] (same scale as view predictions)
+            fc1_1 = Activation("sigmoid")(BatchNormalization()(Dense(128)(embedded_img1)))
+            fc1_2 = Activation("sigmoid")(BatchNormalization()(Dense(128)(embedded_img2)))
+
+            # Concatenate the embeddings with their view predictions
+            view1 = Input(shape=[1])
+            view2 = Input(shape=[1])
+            merged1 = concatenate([fc1_1, view1])
+            merged2 = concatenate([fc1_2, view2])
+
+            # Reduce dimension to 32-dimension vectors
+            fc2_1 = Activation("sigmoid")(BatchNormalization()(Dense(32)(merged1)))
+            fc2_2 = Activation("sigmoid")(BatchNormalization()(Dense(32)(merged2)))
+
+            L1_distance = L1_layer([fc2_1, fc2_2])
         else:
             return None
-        model = Model(inputs=[img1, img2], outputs=out)
-
+        out = Dense(1, activation="sigmoid", kernel_initializer="glorot_uniform")(L1_distance)
+        model = Model(inputs=[img1, img2, view1, view2], outputs=out)
     return model
 
 def view_classification_model(trainable=False, weight_path=None):
