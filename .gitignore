@@ -1,0 +1,6 @@
+temp_images/*
+.idea/*
+__pycache__/*
+*.h5
+*.p
+*.csv
