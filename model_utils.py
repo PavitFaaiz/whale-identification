@@ -22,7 +22,7 @@ NUM_NEGATIVE_SAMPLES = 5
 #     negative_loss = t*tf.log(y) + (1-t)*tf.log(1-y)
 #     return tf.reduce_mean(positive_loss) + tf.reduce_mean(negative_loss)
 
-def identification_model(image_shape, model_num):
+def identification_model(image_shape, model_num, weight_path=None):
     with tf.device("/cpu:0"):
         # Define model
         img = Input(shape=image_shape)
@@ -57,6 +57,8 @@ def identification_model(image_shape, model_num):
             return None
         out = Dense(1, activation="sigmoid", kernel_initializer="glorot_uniform")(L1_distance)
         model = Model(inputs=[img1, img2, view1, view2], outputs=out)
+        if not weight_path is None:
+            model.load_weights(weight_path)
     return model
 
 def view_classification_model(trainable=False, weight_path=None):
