@@ -46,14 +46,14 @@ def generate_embedding(samples, model):
 
 def generate_similarity_matrix():
     # Get model
-    original_model = model_utils.identification_model([224, 224, 3], 2, "weights.h5")
+    original_model = model_utils.identification_model([224, 224, 3], 2, "weights_1600_4.h5")
     if not os.path.exists("embedding32.p"):
         # Get data
-        data, annotations, view_predictions = utils.load_all_data()
+        data, annotations, view_predictions, _ = utils.load_all_data()
         # Get a new model from only up to embedding layer
         inp = [original_model.input[0], original_model.input[2]]
-        layer = original_model.layers[-4]
-        model = Model(inputs=inp, outputs=layer.output)
+        layer = original_model.layers[-3]
+        model = Model(inputs=inp, outputs=layer.get_output_at(1))
         generate_embedding([data, view_predictions], model)
 
     # Starting from distance layer
@@ -77,7 +77,8 @@ def generate_similarity_matrix():
         test_sample_repeated = np.reshape(np.tile(test_samples[i], num_train), [num_train, 32])
         similarity_matrix[i] = np.reshape(parallel_model.predict([test_sample_repeated, train_samples], verbose=1), num_train)
         print("i:", i)
-    pickle.dump(similarity_matrix, open("similarity_matrix.p", "wb"))
+    with tf.device("/cpu:0"):
+        pickle.dump(similarity_matrix, open("similarity_matrix.p", "wb"))
 
 # Evaluate
 if __name__ == "__main__":
@@ -93,7 +94,7 @@ if __name__ == "__main__":
     annotations.set_index("Image", inplace=True)
     ids = get_ids_from_img_names(names, annotations)
     similarity_matrix = pickle.load(open("similarity_matrix.p", "rb"))
-    sorted_indices = np.argsort(-similarity_matrix, axis=1)
+    sorted_indices = np.argsort(similarity_matrix, axis=1)
     for k in range(1, 6, 2):
         print("k:",k)
         predicted_ids = [list(map(lambda idx: ids[idx], row[0:k])) for row in sorted_indices]

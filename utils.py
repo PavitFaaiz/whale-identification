@@ -34,7 +34,8 @@ def load_all_data():
             pickle.dump((data, df, view_predictions), open("data.p", "wb")) #Save the data with pickle to be easily accessed later
         else:
             data, df, view_predictions = pickle.load(open("data.p", "rb"))
-    return data, df, view_predictions
+            names = pickle.load(open("names.p", "rb"))
+    return data, df, view_predictions, names
 
 def load_view_data():
     with tf.device("/cpu:0"):
@@ -126,7 +127,7 @@ def view_classification_preprocess(img_path):
     hist = hist / np.max(hist)
     return hist
 
-def get_next_batch(data, annotation, view_predictions, current_index, batch_size):
+def get_next_batch(data, annotation, view_predictions, names, current_index, batch_size):
     with tf.device("/cpu:0"):
         batch_size = min(batch_size, len(data) - current_index)
         ## Get next batch
@@ -143,9 +144,7 @@ def get_next_batch(data, annotation, view_predictions, current_index, batch_size
         ## Process ground truth values
         ground_truth = np.zeros([batch_size])
         for i in range(batch_size):
-            id = annotation["Id"][current_index+i]
-            random_sample_id = annotation["Id"][indices[i]]
-            if id == random_sample_id:
+            if annotation.loc[names[current_index + i]][0] == annotation.loc[names[indices[i]]][0]:
                 ground_truth[i] = 1
-    print("fetched, ", end="")
+    print("positive samples: %d, " %(np.sum(ground_truth)), end="")
     return batch, random_batch, ground_truth, batch_view, random_batch_view
